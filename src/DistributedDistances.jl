@@ -4,10 +4,10 @@ using Distances
 using Distances: get_common_ncols, _centralize_colwise
 using DistributedArrays
 
-import DistributedArrays: DMatrix, DVector, mappart!
+import DistributedArrays: DMatrix, DVector, map_localparts!
 importall Distances
 
-export dcolwise, dcolwise!
+export dcolwise, dcolwise!, dpairwise, dpairwise!
 
 sqrt!(d::DArray) = map!(sqrt!, d)
 
@@ -16,7 +16,7 @@ wsumsq_percol{T1, T2}(w::AbstractArray{T1}, d::DMatrix{T2}) = DArray(I->wsumsq_p
 
 function dot_percol!(r::DVector, a::DMatrix, b::DMatrix)
     # TODO: check distribution
-    mappart!(localr->dot_percol!(localr, localpart(a), localpart(b)), r)
+    map_localparts!(localr->dot_percol!(localr, localpart(a), localpart(b)), r)
 end
 
 function dot_percol(a::DMatrix, b::DMatrix)
@@ -26,17 +26,17 @@ end
 
 function dcolwise!(r::DVector, metric::PreMetric, a::AbstractVector, b::DMatrix)
     # TODO: assert proper dimensions and types
-    mappart!(localr->colwise!(localr, metric, a, localpart(b)), r)
+    map_localparts!(localr->colwise!(localr, metric, a, localpart(b)), r)
 end
 
 function dcolwise!(r::DVector, metric::PreMetric, a::DMatrix, b::AbstractVector)
     # TODO: assert proper dimensions and types
-    mappart!(localr->colwise!(localr, metric, localpart(a), b), r)
+    map_localparts!(localr->colwise!(localr, metric, localpart(a), b), r)
 end
 
 function dcolwise!(r::DVector, metric::PreMetric, a::DMatrix, b::DMatrix)
     # TODO: assert proper dimensions and types
-    mappart!(localr->colwise!(localr, metric, localpart(a), localpart(b)), r)
+    map_localparts!(localr->colwise!(localr, metric, localpart(a), localpart(b)), r)
 end
 
 function dcolwise!(r::DVector, metric::SemiMetric, a::DMatrix, b::AbstractVector)
@@ -78,6 +78,23 @@ end
 
 function dcolwise!(r::DVector, dist::WeightedEuclidean, a::AbstractVector, b::DMatrix)
     sqrt!(dcolwise!(r, WeightedSqEuclidean(dist.weights), a, b))
+end
+
+function dpairwise!(r::DMatrix, metric::PreMetric, a::AbstractMatrix, b::DMatrix)
+    map_localparts!(localr->pairwise!(localr, metric, a, localpart(b)), r)
+end
+
+function dpairwise(metric::PreMetric, a::AbstractMatrix, b::DMatrix)
+    m = size(a, 2)
+    n = size(b, 2)
+    T = result_type(metric, a, b)
+    bdist = tuple((map(length, b.cuts) .- 1)...)
+    r = DArray(I->zeros(T, size(a, 2), size(localpart(b), 2)), (m, n), procs(b), bdist)
+    dpairwise!(r, metric, a, b)
+end
+
+function dpairwise!{T<:Union{SqEuclidean,Euclidean,CosineDist,WeightedSqEuclidean}}(r::DMatrix, dist::T, a::AbstractMatrix, b::DMatrix)
+    map_localparts!(localr->pairwise!(localr, dist, a, localpart(b)), r)
 end
 
 end # module
