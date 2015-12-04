@@ -1,7 +1,7 @@
 module DistributedDistances
 
 using Distances
-using Distances: get_common_ncols, _centralize_colwise
+using Distances: get_common_ncols, _centralize
 using DistributedArrays
 
 import DistributedArrays: DMatrix, DVector, map_localparts!
@@ -45,31 +45,31 @@ end
 
 function dcolwise(metric::PreMetric, a::DMatrix, b::DMatrix)
     n = get_common_ncols(a, b)
-    T = result_type(metric, a, b)
+    T = result_type(metric, eltype(a), eltype(b))
     r = DArray(I->zeros(T, get_common_ncols(localpart(a), localpart(b))), (n,), procs(a))
     dcolwise!(r, metric, a, b)
 end
 
 function dcolwise(metric::PreMetric, a::AbstractVector, b::DMatrix)
     n = size(b, 2)
-    T = result_type(metric, a, b)
+    T = result_type(metric, eltype(a), eltype(b))
     r = DArray(I->zeros(T, size(localpart(b), 2)), (n,), procs(b))
     dcolwise!(r, metric, a, b)
 end
 
 function dcolwise(metric::PreMetric, a::DMatrix, b::AbstractVector)
     n = size(a, 2)
-    T = result_type(metric, a, b)
+    T = result_type(metric, eltype(a), eltype(b))
     r = DArray(I->zeros(T, size(localpart(a), 2)), (n,), procs(a))
     dcolwise!(r, metric, a, b)
 end
 
 function dcolwise!(r::DVector, dist::CorrDist, a::DMatrix, b::DMatrix)
-    dcolwise!(r, CosineDist(), _centralize_colwise(a), _centralize_colwise(b))
+    dcolwise!(r, CosineDist(), _centralize(a), _centralize(b))
 end
 
 function dcolwise!(r::DVector, dist::CorrDist, a::AbstractVector, b::DMatrix)
-    dcolwise!(r, CosineDist(), _centralize_colwise(a), _centralize_colwise(b))
+    dcolwise!(r, CosineDist(), _centralize(a), _centralize(b))
 end
 
 function dcolwise!(r::DVector, dist::WeightedEuclidean, a::DMatrix, b::DMatrix)
@@ -87,7 +87,7 @@ end
 function dpairwise(metric::PreMetric, a::AbstractMatrix, b::DMatrix)
     m = size(a, 2)
     n = size(b, 2)
-    T = result_type(metric, a, b)
+    T = result_type(metric, eltype(a), eltype(b))
     bdist = tuple((map(length, b.cuts) .- 1)...)
     r = DArray(I->zeros(T, size(a, 2), size(localpart(b), 2)), (m, n), procs(b), bdist)
     dpairwise!(r, metric, a, b)

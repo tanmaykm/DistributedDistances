@@ -14,29 +14,37 @@ macro test_colwise(dist, x, y, xd, yd, tol)
             r2[j] = evaluate($dist, ($x)[:,1], ($y)[:,j])
             r3[j] = evaluate($dist, ($x)[:,j], ($y)[:,1])
         end
-        @test_approx_eq_eps dcolwise($dist, $xd, $yd) r1 $tol
-        @test_approx_eq_eps dcolwise($dist, ($x)[:,1], $yd) r2 $tol
-        @test_approx_eq_eps dcolwise($dist, $xd, ($y)[:,1]) r3 $tol
+
+        tfx = @timed colwise($dist, $x, $y)
+        tdx = @timed dcolwise($dist, $xd, $yd)
+        println("\t$(tdx[2]), $(tfx[2])")
+        @test_approx_eq_eps tdx[1] tfx[1] $tol
+
+        tfx = @timed colwise($dist, ($x)[:,1], $y)
+        tdx = @timed dcolwise($dist, ($x)[:,1], $yd)
+        println("\t$(tdx[2]), $(tfx[2])")
+        @test_approx_eq_eps tdx[1] tfx[1] $tol
+
+        tfx = @timed colwise($dist, $x, ($y)[:,1])
+        tdx = @timed dcolwise($dist, $xd, ($y)[:,1])
+        println("\t$(tdx[2]), $(tfx[2])")
+        @test_approx_eq_eps tdx[1] tfx[1] $tol
     end
 end
 
 macro test_pairwise(dist, x, y, xd, yd, tol)
     quote
-        local nx = size($xd, 2)
-        local ny = size($yd, 2)
-        rxy = zeros(nx, ny)
-        for j = 1 : ny, i = 1 : nx
-            rxy[i, j] = evaluate($dist, ($x)[:,i], ($y)[:,j])
-        end
-        dx = dpairwise($dist, $x, $yd)
-        @test_approx_eq_eps convert(Array, dx) rxy $tol
+        tdx = @timed dpairwise($dist, $x, $yd)
+        tfx = @timed pairwise($dist, $x, $y)
+        println("\t$(tdx[2]), $(tfx[2])")
+        @test_approx_eq_eps tdx[1] tfx[1] $tol
     end
 end
 
 
 # test colwise metrics
 function colwise_test()
-    println("test colwise...")
+    println("colwise...")
 
     m = 5000
     n = 800
@@ -56,6 +64,7 @@ function colwise_test()
     Pd = distribute(P; dist=(1,4));
     Qd = distribute(Q; dist=(1,4));
 
+    println("\tdistributed, singlenode")
     @test_colwise SqEuclidean() X Y Xd Yd 1.0e-12
     @test_colwise Euclidean() X Y Xd Yd 1.0e-12
     @test_colwise Cityblock() X Y Xd Yd 1.0e-11
@@ -79,12 +88,12 @@ end
 
 # test pairwise metrics
 function pairwise_test()
-    println("test pairwise...")
+    println("pairwise...")
 
-    m = 500
-    n = 400
-    nx = 400
-    ny = 400
+    m = 800
+    n = 600
+    nx = 600
+    ny = 600
 
     X = rand(m, nx)
     Y = rand(m, ny)
@@ -101,6 +110,7 @@ function pairwise_test()
     Pd = distribute(P; dist=(1,4));
     Qd = distribute(Q; dist=(1,4));
 
+    println("\tdistributed, singlenode")
     @test_pairwise SqEuclidean() X Y Xd Yd 1.0e-11
     @test_pairwise Euclidean() X Y Xd Yd 1.0e-11
     @test_pairwise Cityblock() X Y Xd Yd 1.0e-11
